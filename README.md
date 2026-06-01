@@ -25,4 +25,4 @@ This project uses standard NVIDIA compiler infrastructure without heavy abstract
 
 **Compile the engine:**
 ```bash
-nvcc -arch=sm_75 matrix_large.cu -o matrix_large
+nvcc -arch=sm_75 v2-tiled.cu -o tiled
