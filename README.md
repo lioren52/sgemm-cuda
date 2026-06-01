@@ -16,8 +16,8 @@ This project is built on the philosophy of progressive optimization. Every archi
 | Kernel Version | Algorithm Strategy | Time (ms) | Throughput (GFLOPs) | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **v1.0** | Naive Global Memory | `2.909` | `369.05` | ✅ Verified | Baseline implementation. Heavily memory-bound by standard VRAM latency. |
-| **v2.0** | Shared Memory Tiling | *TBD* | *TBD* | 🚧 In Progress | Implementing Phase-based loading into SM scratchpads to drastically reduce global memory round-trips. |
-| **v3.0** | Thread Coarsening | *TBD* | *TBD* | ⏳ Planned | - |
+| **v2.0** | Shared Memory Tiling | `1.798` | `597.20` | ✅ Verified | 61% speedup. Bypassed VRAM latency by building L1 scratchpads. Currently bottlenecked by Shared Memory bandwidth (1:2 math-to-memory ratio). |
+| **v3.0** | Thread Coarsening | *TBD* | *TBD* | 🚧 In Progress | Implementing Register Tiling to increase math intensity per thread, alter the memory ratio, and break the TeraFLOP barrier. |
 
 ## 🛠️ Build & Execute
 
@@ -25,4 +25,4 @@ This project uses standard NVIDIA compiler infrastructure without heavy abstract
 
 **Compile the engine:**
 ```bash
-nvcc matrix_large.cu -o matrix_large
+nvcc -arch=sm_75 matrix_large.cu -o matrix_large
