@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 
 #define TILE_WIDTH 16
 
@@ -67,6 +68,18 @@ void verifyCPU(const std::vector<float>& A, const std::vector<float>& B, const s
     printf("SUCCESS: GPU Matrix Math matches CPU perfectly across %d elements!\n", row_A * col_B);
 }
 
+void loadBinaryWeights(const char* filename, std::vector<float>& vec) {
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) {
+        printf("FATAL ERROR: Could not find %s. Did you run the generator?\n", filename);
+        exit(1);
+    }
+    
+    // Read the exact byte footprint straight into the vector's memory
+    in.read(reinterpret_cast<char*>(vec.data()), vec.size() * sizeof(float));
+    in.close();
+}
+
 int main() {
     int row_A = 1024;
     int N = 512;
@@ -76,8 +89,10 @@ int main() {
     std::vector<float> B_h(N * col_B);
     std::vector<float> C_h(row_A * col_B, 0.0f);
 
-    for (int i = 0; i < row_A * N; i++) A_h[i] = (float)(rand() % 10);
-    for (int i = 0; i < N * col_B; i++) B_h[i] = (float)(rand() % 10);
+    printf("Loading matrices from disk...\n");
+    loadBinaryWeights("matrix_A.bin", A_h);
+    loadBinaryWeights("matrix_B.bin", B_h);
+    printf("Matrices loaded successfully.\n");
 
     float *A_d, *B_d, *C_d;
     size_t bytes_A = A_h.size() * sizeof(float);

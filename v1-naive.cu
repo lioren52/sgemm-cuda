@@ -1,6 +1,7 @@
 #include <vector>
 #include <iostream>
 #include <cstdlib>
+#include <fstream>
 
 __global__ void matrixMul(int* A, int* B, int* C, int row_A, int N, int col_B) {
     int bx = blockIdx.x; int by = blockIdx.y;
@@ -36,6 +37,18 @@ void verifyCPU(const std::vector<int>& A, const std::vector<int>& B, const std::
     printf("SUCCESS: GPU Matrix Math matches CPU perfectly across %d elements!\n", row_A * col_B);
 }
 
+void loadBinaryWeights(const char* filename, std::vector<float>& vec) {
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) {
+        printf("FATAL ERROR: Could not find %s. Did you run the generator?\n", filename);
+        exit(1);
+    }
+    
+    // Read the exact byte footprint straight into the vector's memory
+    in.read(reinterpret_cast<char*>(vec.data()), vec.size() * sizeof(float));
+    in.close();
+}
+
 int main() {
     int row_A = 1024;
     int N = 512;
@@ -45,8 +58,10 @@ int main() {
     std::vector<int> B_h(N * col_B);
     std::vector<int> C_h(row_A * col_B, 0);
 
-    for (int i = 0; i < row_A * N; i++) A_h[i] = rand() % 10;
-    for (int i = 0; i < N * col_B; i++) B_h[i] = rand() % 10;
+    printf("Loading matrices from disk...\n");
+    loadBinaryWeights("matrix_A.bin", A_h);
+    loadBinaryWeights("matrix_B.bin", B_h);
+    printf("Matrices loaded successfully.\n");
 
     int* A_d;
     int* B_d;
