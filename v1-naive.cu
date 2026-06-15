@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
+#include <algorithm>
 
 __global__ void matrixMul(float* A, float* B, float* C, int row_A, int N, int col_B) {
     int bx = blockIdx.x; int by = blockIdx.y;
@@ -113,7 +114,7 @@ void benchMatrixMulNaive() {
         cudaEventCreate(&stop);
         
         cudaEventRecord(start);
-        matrixMul<<<blocks_naive, threadPerBlock_naive>>>(A_d, B_d, C_d, row_A, N, col_B);
+        matrixMul<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
         

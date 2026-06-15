@@ -203,7 +203,7 @@ void benchMatrixMulCoarsed() {
     );
 
     printf("Warming up GPU......\n");
-    matrixMulCoarse<<<blocks_coarse, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
+    matrixMulCoarse<<<blocks_coarse, threadPerBlock_coarse>>>(A_d, B_d, C_d, row_A, N, col_B);
     cudaDeviceSynchronize();
 
     cudaEvent_t start, stop;

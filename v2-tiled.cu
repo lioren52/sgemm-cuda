@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <algorithm>
 
 #define TILE_WIDTH 16
 
@@ -138,7 +139,7 @@ void benchMatrixMulTiled() {
         cudaEventCreate(&stop);
         
         cudaEventRecord(start);
-        matrixMulTiled<<<blocks_naive, threadPerBlock_naive>>>(A_d, B_d, C_d, row_A, N, col_B);
+        matrixMulTiled<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
         
@@ -178,5 +179,5 @@ void benchMatrixMulTiled() {
 
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
 
-    verifyCPU(C_h, "/kaggle/input/datasets/arulsaini/matricies/matrix_C_ref.bin", row_A, col_B, N);
+    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
 }
