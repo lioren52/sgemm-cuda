@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <fstream>
 
-__global__ void matrixMul(int* A, int* B, int* C, int row_A, int N, int col_B) {
+__global__ void matrixMul(float* A, float* B, float* C, int row_A, int N, int col_B) {
     int bx = blockIdx.x; int by = blockIdx.y;
     int tx = threadIdx.x; int ty = threadIdx.y;
 
@@ -11,30 +11,39 @@ __global__ void matrixMul(int* A, int* B, int* C, int row_A, int N, int col_B) {
     int Col = bx * blockDim.x + tx;
 
     if (Row < row_A && Col < col_B) {
-        int pValue = 0;
+        float pValue = 0;
         for (int i = 0; i < N; i++) {
-        pValue += A[(Row*N) + i] * B[Col + (i*col_B)];
+            pValue += A[(Row*N) + i] * B[Col + (i*col_B)];
         }
         C[(Row*col_B) + Col] = pValue;
     }
 }
 
 // CPU Verification adapted for rectangular matrices
-void verifyCPU(const std::vector<int>& A, const std::vector<int>& B, const std::vector<int>& C, int row_A, int N, int col_B) {
-    printf("Starting CPU verification... (The CPU might take a few seconds to do what the GPU did instantly)\n");
+void verifyCPU(const std::vector<float>& C_gpu, const char* ref_file, int row_A, int col_B, int N) {
+    printf("Starting verification against reference...\n");
+
+    std::ifstream in(ref_file, std::ios::binary);
+    if (!in) {
+        printf("ERROR: %s not found. Run generator first.\n", ref_file);
+        return;
+    }
+
+    std::vector<float> C_ref(row_A * col_B);
+    in.read(reinterpret_cast<char*>(C_ref.data()), C_ref.size() * sizeof(float));
+    in.close();
+
+    float epsilon = 1e-2f * N;
     for (int row = 0; row < row_A; row++) {
         for (int col = 0; col < col_B; col++) {
-            int expected = 0;
-            for (int i = 0; i < N; i++) {
-                expected += A[row * N + i] * B[i * col_B + col];
-            }
-            if (C[row * col_B + col] != expected) {
-                printf("FAIL at [%d, %d]: GPU=%d, CPU=%d\n", row, col, C[row*col_B+col], expected);
+            int idx = row * col_B + col;
+            if (std::abs(C_gpu[idx] - C_ref[idx]) > epsilon) {
+                printf("FAIL at [%d, %d]: GPU=%f, REF=%f\n", row, col, C_gpu[idx], C_ref[idx]);
                 return;
             }
         }
     }
-    printf("SUCCESS: GPU Matrix Math matches CPU perfectly across %d elements!\n", row_A * col_B);
+    printf("SUCCESS: %d elements verified against reference.\n", row_A * col_B);
 }
 
 void loadBinaryWeights(const char* filename, std::vector<float>& vec) {
@@ -49,82 +58,100 @@ void loadBinaryWeights(const char* filename, std::vector<float>& vec) {
     in.close();
 }
 
-int main() {
-    int row_A = 1024;
-    int N = 512;
-    int col_B = 1024;
+double time2GFLOPs(float milliseconds, int row_A, int col_B, int N) {
+    double seconds = milliseconds / 1000.0;
+    double total_ops = 2.0 * (double)row_A * (double)col_B * (double)N;
+    double giga_ops = total_ops / 1e9;
+    double gflops = giga_ops / seconds;
+    return gflops;
+}
 
-    std::vector<int> A_h(row_A * N);
-    std::vector<int> B_h(N * col_B);
-    std::vector<int> C_h(row_A * col_B, 0);
+void benchMatrixMulNaive() {
+    int row_A = 4096;
+    int N = 4096;
+    int col_B = 4096;
+
+    std::vector<float> A_h(row_A * N);
+    std::vector<float> B_h(N * col_B);
+    std::vector<float> C_h(row_A * col_B, 0.0f);
 
     printf("Loading matrices from disk...\n");
     loadBinaryWeights("matrix_A.bin", A_h);
     loadBinaryWeights("matrix_B.bin", B_h);
     printf("Matrices loaded successfully.\n");
 
-    int* A_d;
-    int* B_d;
-    int* C_d;
+    float *A_d, *B_d, *C_d;
+    size_t bytes_A = A_h.size() * sizeof(float);
+    size_t bytes_B = B_h.size() * sizeof(float);
+    size_t bytes_C = C_h.size() * sizeof(float);
 
-    size_t size_A = row_A * N * sizeof(int);
-    size_t size_B = N * col_B * sizeof(int);
-    size_t size_C = row_A * col_B * sizeof(int);
+    cudaMalloc((void**)&A_d, bytes_A);
+    cudaMalloc((void**)&B_d, bytes_B);
+    cudaMalloc((void**)&C_d, bytes_C); 
 
-    cudaMalloc((void**)&A_d, size_A);
-    cudaMalloc((void**)&B_d, size_B);
-    cudaMalloc((void**)&C_d, size_C);
-
-    cudaMemcpy(A_d, A_h.data(), size_A, cudaMemcpyHostToDevice);
-    cudaMemcpy(B_d, B_h.data(), size_B, cudaMemcpyHostToDevice);
+    cudaMemcpy(A_d, A_h.data(), bytes_A, cudaMemcpyHostToDevice);
+    cudaMemcpy(B_d, B_h.data(), bytes_B, cudaMemcpyHostToDevice);
 
     dim3 threadPerBlock(16, 16);
     dim3 blocks((col_B + threadPerBlock.x - 1) / threadPerBlock.x, (row_A + threadPerBlock.y - 1) / threadPerBlock.y);
+
+    printf("Warming up GPU......\n");
+    matrixMul<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
+    cudaDeviceSynchronize();
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    cudaEventRecord(start);
+    printf("BenchMarking.....Naive\n");
+    std::vector<float> timings(100);
 
-    matrixMul<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
+    for (int i = 0; i < 100; i++) {
+        cudaMemset(C_d, 0, bytes_C);
+        cudaEvent_t start, stop;
+        cudaEventCreate(&start);
+        cudaEventCreate(&stop);
+        
+        cudaEventRecord(start);
+        matrixMul<<<blocks_naive, threadPerBlock_naive>>>(A_d, B_d, C_d, row_A, N, col_B);
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        
+        cudaEventElapsedTime(&timings[i], start, stop);
+        
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+    }
 
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    cudaDeviceSynchronize();
+    std::sort(timings.begin(), timings.end());
+    float median_ms = timings[50];
+    printf("Timings\n");
+    printf("Median kernel time: %f ms\n", median_ms);
+    printf("Min kernel time: %f ms\n", timings[0]);
+    printf("Max kernel time: %f ms\n", timings[99]);
+    printf("\n");
+    printf("GFLOPs\n");
+    double medianG = time2GFLOPs(timings[50], row_A, col_B, N);
+    double minG = time2GFLOPs(timings[99], row_A, col_B, N);
+    double maxG = time2GFLOPs(timings[0], row_A, col_B, N);
+    printf("Median GFLOPs: %f\n", medianG);
+    printf("Min GFLOPs: %f\n", minG);
+    printf("Max GFLOPs: %f\n", maxG);
 
-    float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("GPU Kernel Execution Time: %f ms\n", milliseconds);
-    // --- NEW GFLOPS CALCULATION ---
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
 
-    // 1. Convert ms to seconds
-    double seconds = milliseconds / 1000.0;
+    int clock_mhz = prop.clockRate / 1000;
+    int sm_count = prop.multiProcessorCount;
+    double peak_gflops = 2.0 * sm_count * 64 * clock_mhz * 1e6 / 1e9;
 
-    // 2. Calculate total operations (2 * M * N * K)
-    double total_ops = 2.0 * (double)row_A * (double)col_B * (double)N;
+    printf("\n");
+    printf("Clock Stats\n");
+    printf("Current clock: %d MHz\n", clock_mhz);
+    printf("Theoretical peak at this clock: %.1f GFLOPs\n", peak_gflops);
+    printf("Kernel efficiency: %.1f%%\n", medianG / peak_gflops * 100.0);
 
-    // 3. Convert total ops to Giga-ops (divide by 1 billion)
-    double giga_ops = total_ops / 1e9;
+    cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
 
-    // 4. Calculate throughput
-    double gflops = giga_ops / seconds;
-
-    printf("Throughput: %f GFLOPs\n", gflops);
-
-    cudaMemcpy(C_h.data(), C_d, size_C, cudaMemcpyDeviceToHost);
-
-    verifyCPU(A_h, B_h, C_h, row_A, N, col_B);
-
-
-    cudaFree(A_d);
-    cudaFree(B_d);
-    cudaFree(C_d);
-
-
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
-
-
-    return 0;
+    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
 }
