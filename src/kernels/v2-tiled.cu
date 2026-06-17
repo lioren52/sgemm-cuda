@@ -60,7 +60,6 @@ void benchMatrixMulTiled(float *A_d, float *B_d, float *C_d, int row_A, int N, i
     std::vector<float> timings(100);
 
     for (int i = 0; i < 100; i++) {
-        cudaMemset(C_d, 0, bytes_C);
         cudaEvent_t start, stop;
         cudaEventCreate(&start);
         cudaEventCreate(&stop);
