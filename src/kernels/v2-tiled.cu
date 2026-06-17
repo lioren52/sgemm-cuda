@@ -43,7 +43,7 @@ __global__ void matrixMulTiled(float* A, float* B, float* C, int row_A, int N, i
     } 
 }
 
-void benchMatrixMulTiled(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
+void benchMatrixMulTiled(float *A_d, float *B_d, float *C_d, int& row_A, int& N, int& col_B, float& cublasPer) {
 
     dim3 threadPerBlock(16, 16);
     dim3 blocks((col_B + threadPerBlock.x - 1) / threadPerBlock.x, (row_A + threadPerBlock.y - 1) / threadPerBlock.y);
@@ -93,14 +93,7 @@ void benchMatrixMulTiled(float *A_d, float *B_d, float *C_d, int row_A, int N, i
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, 0);
 
-    int clock_mhz = prop.clockRate / 1000;
-    int sm_count = prop.multiProcessorCount;
-    double peak_gflops = 2.0 * sm_count * 64 * clock_mhz * 1e6 / 1e9;
-
-    printf("\n");
-    printf("Clock Stats\n");
-    printf("Current clock: %d MHz\n", clock_mhz);
-    printf("Theoretical peak at this clock: %.1f GFLOPs\n", peak_gflops);
-    printf("Kernel efficiency: %.1f%%\n", medianG / peak_gflops * 100.0);
+    float relPerformance = (medianG/cublasPer) * 100;
+    std::cout << "Relative to cuBLAS: " << relPerformance << std::endl;
 
 }

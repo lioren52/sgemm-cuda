@@ -10,6 +10,7 @@ int main() {
     std::vector<float> A_h(row_A * N);
     std::vector<float> B_h(N * col_B);
     std::vector<float> C_h(row_A * col_B, 0.0f);
+    float cublasPer = 0.0f;
 
     printf("Loading matrices from disk...\n");
     loadBinaryWeights("matrix_A.bin", A_h);
@@ -31,49 +32,50 @@ int main() {
     printf("\n");
     printf("\n");
     cudaMemset(C_d, 0, bytes_C);
-    benchMatrixMulNaive(A_d, B_d, C_d, row_A, N, col_B);
+    cublasRef(A_d, B_d, C_d, row_A, N, col_B, cublasPer);
+    cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
+    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
+    printf("\n");
+    printf("\n");
+
+    
+    cudaMemset(C_d, 0, bytes_C);
+    benchMatrixMulNaive(A_d, B_d, C_d, row_A, N, col_B, cublasPer);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
     printf("\n");
     printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
-    benchMatrixMulTiled(A_d, B_d, C_d, row_A, N, col_B);
+    benchMatrixMulTiled(A_d, B_d, C_d, row_A, N, col_B, cublasPer);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
     printf("\n");
     printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
-    benchMatrixMulCoarsed_1D(A_d, B_d, C_d, row_A, N, col_B);
+    benchMatrixMulCoarsed_1D(A_d, B_d, C_d, row_A, N, col_B, cublasPer);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
     printf("\n");
     printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
-    benchMatrixMulCoarsed_2D(A_d, B_d, C_d, row_A, N, col_B);
+    benchMatrixMulCoarsed_2D(A_d, B_d, C_d, row_A, N, col_B, cublasPer);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
     printf("\n");
     printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
-    benchMatrixMulWarpTiled(A_d, B_d, C_d, row_A, N, col_B);
+    benchMatrixMulWarpTiled(A_d, B_d, C_d, row_A, N, col_B, cublasPer);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
     printf("\n");
     printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
-    benchMatrixMulVectorizedLoads(A_d, B_d, C_d, row_A, N, col_B);
-    cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
-    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
-    printf("\n");
-    printf("\n");
-
-    cudaMemset(C_d, 0, bytes_C);
-    cublasRef(A_d, B_d, C_d, row_A, N, col_B);
+    benchMatrixMulVectorizedLoads(A_d, B_d, C_d, row_A, N, col_B, cublasPer);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
 

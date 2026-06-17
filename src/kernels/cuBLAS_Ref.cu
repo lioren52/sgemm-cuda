@@ -4,7 +4,7 @@
 
 
 
-void cublasRef(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
+void cublasRef(float *A_d, float *B_d, float *C_d, int& row_A, int& N, int& col_B, float& cublasPer) {
 
     cublasHandle_t handle;
     cublasCreate(&handle);
@@ -63,19 +63,16 @@ void cublasRef(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) 
     printf("Median GFLOPs: %f\n", medianG);
     printf("Min GFLOPs: %f\n", minG);
     printf("Max GFLOPs: %f\n", maxG);
+    cublasPer = (float)medianG;
 
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, 0);
 
     int clock_mhz = prop.clockRate / 1000;
-    int sm_count = prop.multiProcessorCount;
-    double peak_gflops = 2.0 * sm_count * 64 * clock_mhz * 1e6 / 1e9;
 
     printf("\n");
     printf("Clock Stats\n");
-    printf("Current clock: %d MHz\n", clock_mhz);
-    printf("Theoretical peak at this clock: %.1f GFLOPs\n", peak_gflops);
-    printf("Kernel efficiency: %.1f%%\n", medianG / peak_gflops * 100.0);
+    printf("Max clock: %d MHz\n", clock_mhz);
 
     cublasDestroy(handle);
 }
