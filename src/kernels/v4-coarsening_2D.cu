@@ -1,65 +1,51 @@
-#include <iostream>
-#include <vector>
-#include <cmath>
-#include <cstdlib>
-#include <fstream>
-#include <algorithm>
+#include "benchmark.h"
+#include "utils.h"
 
-#define TILE_WIDTH 16
+#define TILE_WIDTH 32
+#define COARSE_FACTOR 4
+#define COARSE_FACTOR_2D 2
 
-
-__global__ void matrixMulTiled(float* A, float* B, float* C, int row_A, int N, int col_B) {
-    __shared__ float As[TILE_WIDTH][TILE_WIDTH];
-    __shared__ float Bs[TILE_WIDTH][TILE_WIDTH];
+__global__ void matrixMulCoarse_2D(float* A, float* B, float* C, int row_A, int N, int col_B) {
+    __shared__ float As[TILE_WIDTH * COARSE_FACTOR_2D][TILE_WIDTH];
+    __shared__ float Bs[TILE_WIDTH][TILE_WIDTH * COARSE_FACTOR_2D];
 
     int bx = blockIdx.x; int by = blockIdx.y;
     int tx = threadIdx.x; int ty = threadIdx.y;
 
-    int col = bx * blockDim.x + tx;
-    int row = by * blockDim.y + ty;
+    int rowStart = by * TILE_WIDTH * COARSE_FACTOR_2D + ty;
+    int colStart = bx * TILE_WIDTH * COARSE_FACTOR_2D + tx;
 
-    float pVal = 0.0f; 
+    float pVal[COARSE_FACTOR_2D][COARSE_FACTOR_2D] = {0.0f};
 
-    for (int ph = 0; ph < (N + TILE_WIDTH - 1) / TILE_WIDTH; ph++) {
-        if (row < row_A && (ph * TILE_WIDTH + tx) < N) {
-            As[ty][tx] = A[row * N + ph * TILE_WIDTH + tx];
-        } else {
-            As[ty][tx] = 0.0f;
+    for (int ph = 0; ph < N/TILE_WIDTH; ph++) {
+        for (int c = 0; c < COARSE_FACTOR_2D; c++) {
+            int col = colStart + c * TILE_WIDTH;
+            int row = rowStart + c * TILE_WIDTH;
+            Bs[ty][tx + (c*TILE_WIDTH)] = B[(ph*TILE_WIDTH + ty)*col_B + col];
+            As[ty + (c*TILE_WIDTH)][tx] = A[row*N + (ph*TILE_WIDTH+tx)];
         }
-
-        if ((ph * TILE_WIDTH + ty) < N && col < col_B) {
-            Bs[ty][tx] = B[(ph * TILE_WIDTH + ty) * col_B + col];
-        } else {
-            Bs[ty][tx] = 0.0f;
-        }
-        
         __syncthreads();
 
-        for (int k = 0; k < TILE_WIDTH; k++) {
-            pVal += As[ty][k] * Bs[k][tx];
+        for (int c = 0; c < COARSE_FACTOR_2D; c++) {
+            for (int r = 0; r < COARSE_FACTOR_2D; r++) {
+                for (int i = 0; i < TILE_WIDTH; i++) {
+                    pVal[r][c] += As[ty + (r*TILE_WIDTH)][i] * Bs[i][tx + (c*TILE_WIDTH)];
+                }
+            }
         }
         __syncthreads();
     }
 
-    if (row < row_A && col < col_B) {
-        C[row * col_B + col] = pVal;
-    } 
+    for (int c = 0; c < COARSE_FACTOR_2D; c++) {
+        for (int r = 0; r < COARSE_FACTOR_2D; r++) {
+            int col = colStart + c * TILE_WIDTH;
+            int row = rowStart + r * TILE_WIDTH;
+            C[row*col_B + col] = pVal[r][c];
+        }
+    }
 }
 
-void benchMatrixMulTiled() {
-    int row_A = 4096;
-    int N = 4096;
-    int col_B = 4096;
-
-    std::vector<float> A_h(row_A * N);
-    std::vector<float> B_h(N * col_B);
-    std::vector<float> C_h(row_A * col_B, 0.0f);
-
-    printf("Loading matrices from disk...\n");
-    loadBinaryWeights("matrix_A.bin", A_h);
-    loadBinaryWeights("matrix_B.bin", B_h);
-    printf("Matrices loaded successfully.\n");
-
+void benchMatrixMulCoarsed_2D(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
     float *A_d, *B_d, *C_d;
     size_t bytes_A = A_h.size() * sizeof(float);
     size_t bytes_B = B_h.size() * sizeof(float);
@@ -72,18 +58,21 @@ void benchMatrixMulTiled() {
     cudaMemcpy(A_d, A_h.data(), bytes_A, cudaMemcpyHostToDevice);
     cudaMemcpy(B_d, B_h.data(), bytes_B, cudaMemcpyHostToDevice);
 
-    dim3 threadPerBlock(16, 16);
-    dim3 blocks((col_B + threadPerBlock.x - 1) / threadPerBlock.x, (row_A + threadPerBlock.y - 1) / threadPerBlock.y);
+    dim3 threadPerBlock_2D(32, 32);
+    dim3 blocks_2D(
+        col_B / (TILE_WIDTH * COARSE_FACTOR_2D),
+        row_A / (TILE_WIDTH * COARSE_FACTOR_2D)
+    );
 
     printf("Warming up GPU......\n");
-    matrixMulTiled<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
+    matrixMulCoarse_1D<<<blocks_coarse, threadPerBlock_coarse>>>(A_d, B_d, C_d, row_A, N, col_B);
     cudaDeviceSynchronize();
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    printf("BenchMarking.....Tiled\n");
+    printf("BenchMarking.....Coarsed\n");
     std::vector<float> timings(100);
 
     for (int i = 0; i < 100; i++) {
@@ -93,7 +82,7 @@ void benchMatrixMulTiled() {
         cudaEventCreate(&stop);
         
         cudaEventRecord(start);
-        matrixMulTiled<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
+        matrixMulCoarse_2D<<<blocks_2D, threadPerBlock_2D>>>(A_d, B_d, C_d, row_A, N, col_B);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
         

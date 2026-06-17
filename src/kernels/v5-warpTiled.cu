@@ -1,7 +1,6 @@
-#include <iostream>
-#include <vector>
-#include <fstream>
-#include <algorithm>
+#include "benchmark.h"
+#include "utils.h"
+
 
 #define BM 64
 #define BN 64
@@ -74,31 +73,7 @@ __global__ void matrixMulWarpTiled(float* A, float* B, float* C, int M, int K, i
 }
 
 
-void benchMatrixMulWarpTiled() {
-    int row_A = 4096;
-    int N = 4096;
-    int col_B = 4096;
-
-    std::vector<float> A_h(row_A * N);
-    std::vector<float> B_h(N * col_B);
-    std::vector<float> C_h(row_A * col_B, 0.0f);
-
-    printf("Loading matrices from disk...\n");
-    loadBinaryWeights("matrix_A.bin", A_h);
-    loadBinaryWeights("matrix_B.bin", B_h);
-    printf("Matrices loaded successfully.\n");
-
-    float *A_d, *B_d, *C_d;
-    size_t bytes_A = A_h.size() * sizeof(float);
-    size_t bytes_B = B_h.size() * sizeof(float);
-    size_t bytes_C = C_h.size() * sizeof(float);
-
-    cudaMalloc((void**)&A_d, bytes_A);
-    cudaMalloc((void**)&B_d, bytes_B);
-    cudaMalloc((void**)&C_d, bytes_C); 
-
-    cudaMemcpy(A_d, A_h.data(), bytes_A, cudaMemcpyHostToDevice);
-    cudaMemcpy(B_d, B_h.data(), bytes_B, cudaMemcpyHostToDevice);
+void benchMatrixMulWarpTiled(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
 
     dim3 threadPerBlock_Warp(16, 16);
     dim3 blocks_Warp(
@@ -161,8 +136,4 @@ void benchMatrixMulWarpTiled() {
     printf("Current clock: %d MHz\n", clock_mhz);
     printf("Theoretical peak at this clock: %.1f GFLOPs\n", peak_gflops);
     printf("Kernel efficiency: %.1f%%\n", medianG / peak_gflops * 100.0);
-
-    cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
-
-    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
 }

@@ -1,63 +1,67 @@
-#include <vector>
-#include <iostream>
-#include <cstdlib>
-#include <fstream>
-#include <algorithm>
+#include "benchmark.h"
+#include "utils.h"
 
-__global__ void matrixMul(float* A, float* B, float* C, int row_A, int N, int col_B) {
+
+#define TILE_WIDTH 32
+#define COARSE_FACTOR 4
+#define COARSE_FACTOR_2D 2
+
+
+
+__global__ void matrixMulCoarse_1D(float* A, float* B, float* C, int row_A, int N, int col_B) {
+    __shared__ float As[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float Bs[TILE_WIDTH][TILE_WIDTH * COARSE_FACTOR];
+
     int bx = blockIdx.x; int by = blockIdx.y;
     int tx = threadIdx.x; int ty = threadIdx.y;
 
-    int Row = by * blockDim.y + ty;
-    int Col = bx * blockDim.x + tx;
+    int row = by * TILE_WIDTH + ty;
+    int colStart = bx * TILE_WIDTH * COARSE_FACTOR + tx;
 
-    if (Row < row_A && Col < col_B) {
-        float pValue = 0;
-        for (int i = 0; i < N; i++) {
-            pValue += A[(Row*N) + i] * B[Col + (i*col_B)];
+    float pVal[COARSE_FACTOR] = {0.0f};
+
+    for (int ph = 0; ph < N/TILE_WIDTH; ph++) {
+        As[ty][tx] = A[row*N + (ph*TILE_WIDTH+tx)];
+        for (int c = 0; c < COARSE_FACTOR; c++) {
+            int col = colStart + c * TILE_WIDTH;
+            Bs[ty][tx + (c*TILE_WIDTH)] = B[(ph*TILE_WIDTH + ty)*col_B + col];
         }
-        C[(Row*col_B) + Col] = pValue;
+        __syncthreads();
+
+        for (int c = 0; c < COARSE_FACTOR; c++) {
+            int col = colStart + c * TILE_WIDTH;
+
+            for (int i = 0; i < TILE_WIDTH; i++) {
+                pVal[c] += As[ty][i] * Bs[i][tx + (c*TILE_WIDTH)];
+            }
+        }
+        __syncthreads();
+    }
+
+    for (int c = 0; c < COARSE_FACTOR; c++) {
+        int col = colStart + c*TILE_WIDTH;
+        C[row*col_B + col] = pVal[c];
     }
 }
 
-void benchMatrixMulNaive() {
-    int row_A = 4096;
-    int N = 4096;
-    int col_B = 4096;
 
-    std::vector<float> A_h(row_A * N);
-    std::vector<float> B_h(N * col_B);
-    std::vector<float> C_h(row_A * col_B, 0.0f);
+void benchMatrixMulCoarsed(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
 
-    printf("Loading matrices from disk...\n");
-    loadBinaryWeights("matrix_A.bin", A_h);
-    loadBinaryWeights("matrix_B.bin", B_h);
-    printf("Matrices loaded successfully.\n");
-
-    float *A_d, *B_d, *C_d;
-    size_t bytes_A = A_h.size() * sizeof(float);
-    size_t bytes_B = B_h.size() * sizeof(float);
-    size_t bytes_C = C_h.size() * sizeof(float);
-
-    cudaMalloc((void**)&A_d, bytes_A);
-    cudaMalloc((void**)&B_d, bytes_B);
-    cudaMalloc((void**)&C_d, bytes_C); 
-
-    cudaMemcpy(A_d, A_h.data(), bytes_A, cudaMemcpyHostToDevice);
-    cudaMemcpy(B_d, B_h.data(), bytes_B, cudaMemcpyHostToDevice);
-
-    dim3 threadPerBlock(16, 16);
-    dim3 blocks((col_B + threadPerBlock.x - 1) / threadPerBlock.x, (row_A + threadPerBlock.y - 1) / threadPerBlock.y);
+    dim3 threadPerBlock_coarse(32, 32);
+    dim3 blocks_coarse(
+        col_B / (threadPerBlock_coarse.x * COARSE_FACTOR),
+        row_A / threadPerBlock_coarse.y
+    );
 
     printf("Warming up GPU......\n");
-    matrixMul<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
+    matrixMulCoarse_1D<<<blocks_coarse, threadPerBlock_coarse>>>(A_d, B_d, C_d, row_A, N, col_B);
     cudaDeviceSynchronize();
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    printf("BenchMarking.....Naive\n");
+    printf("BenchMarking.....Coarsed\n");
     std::vector<float> timings(100);
 
     for (int i = 0; i < 100; i++) {
@@ -67,7 +71,7 @@ void benchMatrixMulNaive() {
         cudaEventCreate(&stop);
         
         cudaEventRecord(start);
-        matrixMul<<<blocks, threadPerBlock>>>(A_d, B_d, C_d, row_A, N, col_B);
+        matrixMulCoarse_1D<<<blocks_coarse, threadPerBlock_coarse>>>(A_d, B_d, C_d, row_A, N, col_B);
         cudaEventRecord(stop);
         cudaEventSynchronize(stop);
         
@@ -105,7 +109,4 @@ void benchMatrixMulNaive() {
     printf("Theoretical peak at this clock: %.1f GFLOPs\n", peak_gflops);
     printf("Kernel efficiency: %.1f%%\n", medianG / peak_gflops * 100.0);
 
-    cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
-
-    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
 }
