@@ -105,7 +105,7 @@ void benchMatrixMulVectorizedLoads(float *A_d, float *B_d, float *C_d, int row_A
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    printf("BenchMarking.....Warp Tiled\n");
+    printf("BenchMarking.....Vectorized Loading\n");
     std::vector<float> timings(100);
 
     for (int i = 0; i < 100; i++) {

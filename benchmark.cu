@@ -28,35 +28,49 @@ int main() {
     cudaMemcpy(A_d, A_h.data(), bytes_A, cudaMemcpyHostToDevice);
     cudaMemcpy(B_d, B_h.data(), bytes_B, cudaMemcpyHostToDevice);
 
+    printf("\n");
+    printf("\n");
     cudaMemset(C_d, 0, bytes_C);
     benchMatrixMulNaive(A_d, B_d, C_d, row_A, N, col_B);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
+    printf("\n");
+    printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
     benchMatrixMulTiled(A_d, B_d, C_d, row_A, N, col_B);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
+    printf("\n");
+    printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
     benchMatrixMulCoarsed_1D(A_d, B_d, C_d, row_A, N, col_B);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
+    printf("\n");
+    printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
     benchMatrixMulCoarsed_2D(A_d, B_d, C_d, row_A, N, col_B);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
+    printf("\n");
+    printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
     benchMatrixMulWarpTiled(A_d, B_d, C_d, row_A, N, col_B);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
+    printf("\n");
+    printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
     benchMatrixMulVectorizedLoads(A_d, B_d, C_d, row_A, N, col_B);
     cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
     verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
+    printf("\n");
+    printf("\n");
 
     cudaMemset(C_d, 0, bytes_C);
     cublasRef(A_d, B_d, C_d, row_A, N, col_B);

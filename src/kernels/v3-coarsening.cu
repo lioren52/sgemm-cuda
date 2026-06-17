@@ -61,7 +61,7 @@ void benchMatrixMulCoarsed_1D(float *A_d, float *B_d, float *C_d, int row_A, int
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    printf("BenchMarking.....Coarsed\n");
+    printf("BenchMarking.....Coarsed 1D\n");
     std::vector<float> timings(100);
 
     for (int i = 0; i < 100; i++) {
