@@ -46,18 +46,7 @@ __global__ void matrixMulCoarse_2D(float* A, float* B, float* C, int row_A, int 
 }
 
 void benchMatrixMulCoarsed_2D(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
-    float *A_d, *B_d, *C_d;
-    size_t bytes_A = A_h.size() * sizeof(float);
-    size_t bytes_B = B_h.size() * sizeof(float);
-    size_t bytes_C = C_h.size() * sizeof(float);
-
-    cudaMalloc((void**)&A_d, bytes_A);
-    cudaMalloc((void**)&B_d, bytes_B);
-    cudaMalloc((void**)&C_d, bytes_C); 
-
-    cudaMemcpy(A_d, A_h.data(), bytes_A, cudaMemcpyHostToDevice);
-    cudaMemcpy(B_d, B_h.data(), bytes_B, cudaMemcpyHostToDevice);
-
+    
     dim3 threadPerBlock_2D(32, 32);
     dim3 blocks_2D(
         col_B / (TILE_WIDTH * COARSE_FACTOR_2D),
