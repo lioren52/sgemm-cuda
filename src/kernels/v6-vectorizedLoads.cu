@@ -98,7 +98,7 @@ void benchMatrixMulVectorizedLoads(float *A_d, float *B_d, float *C_d, int row_A
     );
 
     printf("Warming up GPU......\n");
-    matrixMulVectorizedLoads<<<blocks_Warp, threadPerBlock_Warp>>>(A_d, B_d, C_d, row_A, N, col_B);
+    matrixMulVectorizedLoads<<<blocks_Vector, threadPerBlock_Vector>>>(A_d, B_d, C_d, row_A, N, col_B);
     cudaDeviceSynchronize();
 
     cudaEvent_t start, stop;
