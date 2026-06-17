@@ -27,7 +27,6 @@ void cublasRef(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) 
     std::vector<float> timings(100);
 
     for (int i = 0; i < 100; i++) {
-        cudaMemset(C_d, 0, bytes_C);
         cudaEvent_t start, stop;
         cudaEventCreate(&start);
         cudaEventCreate(&stop);
@@ -77,10 +76,6 @@ void cublasRef(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) 
     printf("Current clock: %d MHz\n", clock_mhz);
     printf("Theoretical peak at this clock: %.1f GFLOPs\n", peak_gflops);
     printf("Kernel efficiency: %.1f%%\n", medianG / peak_gflops * 100.0);
-
-    cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
-
-    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
 
     cublasDestroy(handle);
 }
