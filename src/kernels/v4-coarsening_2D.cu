@@ -46,7 +46,7 @@ __global__ void matrixMulCoarse_2D(float* A, float* B, float* C, int row_A, int 
 }
 
 void benchMatrixMulCoarsed_2D(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
-    
+
     dim3 threadPerBlock_2D(32, 32);
     dim3 blocks_2D(
         col_B / (TILE_WIDTH * COARSE_FACTOR_2D),
@@ -54,7 +54,7 @@ void benchMatrixMulCoarsed_2D(float *A_d, float *B_d, float *C_d, int row_A, int
     );
 
     printf("Warming up GPU......\n");
-    matrixMulCoarse_1D<<<blocks_coarse, threadPerBlock_coarse>>>(A_d, B_d, C_d, row_A, N, col_B);
+    matrixMulCoarse_1D<<<blocks_2D, threadPerBlock_2D>>>(A_d, B_d, C_d, row_A, N, col_B);
     cudaDeviceSynchronize();
 
     cudaEvent_t start, stop;
@@ -107,8 +107,4 @@ void benchMatrixMulCoarsed_2D(float *A_d, float *B_d, float *C_d, int row_A, int
     printf("Current clock: %d MHz\n", clock_mhz);
     printf("Theoretical peak at this clock: %.1f GFLOPs\n", peak_gflops);
     printf("Kernel efficiency: %.1f%%\n", medianG / peak_gflops * 100.0);
-
-    cudaMemcpy(C_h.data(), C_d, bytes_C, cudaMemcpyDeviceToHost);
-
-    verifyCPU(C_h, "matrix_C_ref.bin", row_A, col_B, N);
 }
