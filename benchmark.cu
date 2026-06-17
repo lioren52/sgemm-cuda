@@ -1,5 +1,6 @@
 #include "utils.h"
 #include "benchmark.h"
+#include <iostream>
 
 int main() {
     int row_A = 4096;
