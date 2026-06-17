@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <iostream>
+#include <algorithm>
 
 void verifyCPU(const std::vector<float>& C_gpu, const char* ref_file, int row_A, int col_B, int N);
 
