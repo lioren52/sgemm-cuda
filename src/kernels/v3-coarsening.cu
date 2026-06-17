@@ -45,7 +45,7 @@ __global__ void matrixMulCoarse_1D(float* A, float* B, float* C, int row_A, int 
 }
 
 
-void benchMatrixMulCoarsed(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
+void benchMatrixMulCoarsed_1D(float *A_d, float *B_d, float *C_d, int row_A, int N, int col_B) {
 
     dim3 threadPerBlock_coarse(32, 32);
     dim3 blocks_coarse(
