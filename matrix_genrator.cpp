@@ -16,9 +16,9 @@ void saveBinary(const char* filename, const std::vector<float>& vec) {
 }
 
 int main() {
-    size_t row_A = 4096;
-    size_t N     = 4096;
-    size_t col_B = 4096;
+    size_t row_A = 8192;
+    size_t N     = 8192;
+    size_t col_B = 8192;
 
     srand(42);
 
