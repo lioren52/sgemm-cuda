@@ -10,7 +10,7 @@ void verifyCPU(const std::vector<float>& C_gpu, std::string ref_file, int row_A,
 
     std::ifstream in(ref_file, std::ios::binary);
     if (!in) {
-        printf("ERROR: %s not found. Run generator first.\n", ref_file);
+        std::cout << "ERROR: " << ref_file <<" not found. Run generator first.\n";
         return;
     }
 
@@ -28,7 +28,7 @@ void verifyCPU(const std::vector<float>& C_gpu, std::string ref_file, int row_A,
             }
         }
     }
-    printf("SUCCESS: %d elements verified against reference.\n", row_A * col_B);
+    std::cout << "SUCCESS: " << row_A * col_B << " elements verified against reference.\n";
 }
 
 void loadBinaryWeights(std::string filename, std::vector<float>& vec) {
