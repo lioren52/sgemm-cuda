@@ -31,7 +31,7 @@ void verifyCPU(const std::vector<float>& C_gpu, const char* ref_file, int row_A,
     printf("SUCCESS: %d elements verified against reference.\n", row_A * col_B);
 }
 
-void loadBinaryWeights(const char* filename, std::vector<float>& vec) {
+void loadBinaryWeights(std::string filename, std::vector<float>& vec) {
     std::ifstream in(filename, std::ios::binary);
     if (!in) {
         printf("FATAL ERROR: Could not find %s. Did you run the generator?\n", filename);
